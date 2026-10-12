@@ -24,11 +24,6 @@ local CFG = {
     tb_maxdist = 150,
     tb_catch = true,
 
-    tb_click_min = 60,
-    tb_click_max = 120,
-    tb_rel_min = 15,
-    tb_rel_max = 50,
-
     tb_react_min = 20,
     tb_react_max = 80,
 
@@ -559,29 +554,15 @@ local function realtimeScan()
 end
 
 -- ===== clicking =========================================================
-local lastClick, nextClickIn = 0, 0
-local pendingRelease = 0
 local spamLast, spamNext = 0, 0
 
 local function resetEngagement()
-    nextClickIn = 0
     spamNext = 0
 end
 
-local function fireOnce(now)
-    if pendingRelease > 0 and now < pendingRelease then return end
-    if pendingRelease > 0 then
-        pcall(mouse1release)
-        pendingRelease = 0
-    end
-    local hold = randRange(cfg("tb_rel_min"), cfg("tb_rel_max")) / 1000
-    if hold > 0.002 and pcall(mouse1press) then
-        pendingRelease = now + hold
-    else
-        pcall(mouse1click)
-    end
-    nextClickIn = randRange(cfg("tb_click_min"), cfg("tb_click_max")) / 1000
-    lastClick = now
+-- one answer click; cadence is entirely controlled by spam min/max
+local function fireOnce()
+    pcall(mouse1click)
 end
 
 local alive = true
@@ -593,11 +574,6 @@ end
 
 -- ===== main step ========================================================
 local function step(now)
-    if pendingRelease > 0 and now >= pendingRelease then
-        pcall(mouse1release)
-        pendingRelease = 0
-    end
-
     watchSweep()
     realtimeScan()
 
@@ -622,14 +598,15 @@ local function step(now)
         -- reaction delay for the first answer, then rapid-fire for as long
         -- as the key stays held (keyActive clearing latched stops it)
         if now >= fireAt and now - spamLast >= spamNext then
-            fireOnce(now)
+            fireOnce()
             spamLast = now
             spamNext = math.max(0.01, randRange(cfg("tb_spam_min"), cfg("tb_spam_max")) / 1000)
         end
     elseif not cfg("tb_catch") then
-        if hoverEnemy(now) and now >= fireAt and now - lastClick >= nextClickIn then
-            fireOnce(now)
-            fireAt = now + randRange(cfg("tb_react_min"), cfg("tb_react_max")) / 1000
+        if hoverEnemy(now) and now - spamLast >= spamNext then
+            fireOnce()
+            spamLast = now
+            spamNext = math.max(0.01, randRange(cfg("tb_spam_min"), cfg("tb_spam_max")) / 1000)
         end
     else
         resetEngagement()
@@ -720,12 +697,6 @@ local COLUMNS = {
         { kind = "slider", id = "tb_spam_min", label = "spam min", min = 10, max = 500, fmt = "%dms" },
         { kind = "slider", id = "tb_spam_max", label = "spam max", min = 10, max = 500, fmt = "%dms" },
         { kind = "note", label = "spam = click speed while firing back" },
-        { kind = "slider", id = "tb_click_min", label = "min click delay", min = 0, max = 1000, fmt = "%dms" },
-        { kind = "slider", id = "tb_click_max", label = "max click delay", min = 0, max = 1000, fmt = "%dms" },
-        { kind = "slider", id = "tb_rel_min", label = "min release", min = 0, max = 500, fmt = "%dms" },
-        { kind = "slider", id = "tb_rel_max", label = "max release", min = 0, max = 500, fmt = "%dms" },
-        { kind = "note", label = "delay = between clicks" },
-        { kind = "note", label = "release = how long held" },
     }},
     { title = "configs", widgets = {} },
 }
